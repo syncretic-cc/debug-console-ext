@@ -51,8 +51,8 @@ async function appendToLogFile(message: string): Promise<void> {
         // but before the first log message
         workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (workspaceFolder) {
-            const tempDir = path.join(workspaceFolder, 'temp');
-            logFilePath = path.join(tempDir, 'debugConsole.log');
+            // Save directly in the workspace folder
+            logFilePath = path.join(workspaceFolder, 'debugConsole.log');
             directoryEnsured = false; // Reset flag as path is newly set
             console.log(`Debug Logger: Log path initialized late at ${logFilePath}`);
             // No need to call ensureLogDirectory here, it will be called below
@@ -98,8 +98,8 @@ export function activate(context: vscode.ExtensionContext) {
         console.warn('Debug Logger: No workspace folder found on activation. Log saving might fail until a workspace is opened.');
         // We don't return here, as a workspace might open later, but logFilePath won't be set initially.
     } else {
-        const tempDir = path.join(workspaceFolder, 'temp');
-        logFilePath = path.join(tempDir, 'debugConsole.log');
+        // Save directly in the workspace folder
+        logFilePath = path.join(workspaceFolder, 'debugConsole.log');
         // Reset directory ensured flag on activation
         directoryEnsured = false;
         // Attempt to ensure directory exists on activation
@@ -111,8 +111,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.workspace.onDidChangeWorkspaceFolders(() => {
             workspaceFolder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
             if (workspaceFolder) {
-                const tempDir = path.join(workspaceFolder, 'temp');
-                logFilePath = path.join(tempDir, 'debugConsole.log');
+                // Save directly in the workspace folder
+                logFilePath = path.join(workspaceFolder, 'debugConsole.log');
                 directoryEnsured = false; // Reset flag as path might change
                 ensureLogDirectory(); // Try ensuring the new directory
                 console.log(`Debug Logger: Workspace changed. Log path set to ${logFilePath}`);
@@ -134,6 +134,38 @@ export function activate(context: vscode.ExtensionContext) {
          * @returns {vscode.DebugAdapterTracker} The debug adapter tracker.
          */
         createDebugAdapterTracker() {
+            // Reset the log file at the beginning of each debug session
+            if (logFilePath) {
+                // Use an async IIFE to handle the promise without making createDebugAdapterTracker async
+                (async () => {
+                    try {
+                        // Ensure directory exists before attempting to write/clear
+                        // This handles cases where the directory might not exist yet if the workspace
+                        // was opened after activation but before the first debug session.
+                        if (!directoryEnsured) {
+                            await ensureLogDirectory();
+                        }
+                        // Only write if directory exists and is ensured
+                        if (logFilePath && directoryEnsured) {
+                             await fs.promises.writeFile(logFilePath, '', 'utf8'); // Overwrite with empty string
+                             console.log(`Debug Logger: Log file ${logFilePath} reset for new session.`);
+                        } else if (logFilePath) {
+                             // Log error if directory couldn't be ensured
+                             console.error(`Debug Logger: Cannot reset log file. Directory ${path.dirname(logFilePath)} not ensured.`);
+                        }
+                        // If logFilePath is null/undefined, the outer 'if' prevents this block
+                    } catch (error) {
+                        console.error(`Debug Logger: Failed to reset log file ${logFilePath}: ${error instanceof Error ? error.message : String(error)}`);
+                        // Optionally notify user
+                        // vscode.window.showErrorMessage(`Debug Logger: Failed to reset log file: ${error}`);
+                    }
+                })(); // Immediately invoke the async function
+            } else {
+                 // Log a warning if the path isn't set when the tracker is created.
+                 // This might indicate an issue with activation or workspace handling logic.
+                 console.warn('Debug Logger: Cannot reset log file. logFilePath is not set when creating debug adapter tracker.');
+            }
+
             return {
                 /**
                  * Called when a message is sent from the debug adapter to the client (VS Code).
