@@ -3,7 +3,7 @@
   "displayName": "Debug Logger",
   "description": "Automatically logs the output from the VS Code Debug Console to a file named debugConsole.log within a temp directory in your workspace.",
   "publisher": "Syncretic",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "repository": {
     "type": "git",
     "url": "https://github.com/Syncretic/debug-logger.git"

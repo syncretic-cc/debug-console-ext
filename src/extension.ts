@@ -63,27 +63,26 @@ async function appendToLogFile(message: string): Promise<void> {
         }
     }
 
-    // Ensure directory exists before first write (or if path was just set)
-    if (!directoryEnsured) {
-        await ensureLogDirectory();
-        // If directory creation failed, don't attempt to append
-        if (!directoryEnsured) {
-            console.error(`Debug Logger: Failed to ensure log directory exists for path: ${logFilePath}. Cannot append message.`);
-            return; // Prevent appending if directory isn't ready
-        }
-    }
-
-    // Proceed with appending only if logFilePath is now valid and directoryEnsured is true
-    if (logFilePath && directoryEnsured) {
+    // Ensure directory exists right before appending and proceed only if logFilePath is valid
+    if (logFilePath) {
         try {
-            await fs.promises.appendFile(logFilePath, message, 'utf8');
+            // Ensure directory exists just before attempting to append
+            await ensureLogDirectory(); 
+            // Need to re-check directoryEnsured state after the attempt, 
+            // as ensureLogDirectory might have failed silently or logFilePath might have changed.
+            if (directoryEnsured) { 
+               await fs.promises.appendFile(logFilePath, message, 'utf8');
+            } else {
+               // Log error if directory isn't ensured after attempt
+               console.error(`Debug Logger: Cannot append message. Directory not ensured for ${logFilePath}.`);
+            }
         } catch (error) {
             console.error(`Debug Logger: Failed to append to log file ${logFilePath}: ${error instanceof Error ? error.message : String(error)}`);
             // Optionally notify user
             // vscode.window.showErrorMessage(`Debug Logger: Failed to write to log file: ${error}`);
         }
     }
-    // If logFilePath is somehow still null or directoryEnsured is false after checks,
+    // If logFilePath is somehow still null after initial checks,
     // the function will silently exit here, which is intended as preconditions failed.
 }
 
@@ -139,21 +138,22 @@ export function activate(context: vscode.ExtensionContext) {
                 // Use an async IIFE to handle the promise without making createDebugAdapterTracker async
                 (async () => {
                     try {
-                        // Ensure directory exists before attempting to write/clear
-                        // This handles cases where the directory might not exist yet if the workspace
-                        // was opened after activation but before the first debug session.
-                        if (!directoryEnsured) {
-                            await ensureLogDirectory();
-                        }
-                        // Only write if directory exists and is ensured
+                        // Ensure directory exists before attempting to write/clear.
+                        // This guarantees the check happens for this specific session initialization.
+                        await ensureLogDirectory();
+                        
+                        // Check logFilePath *after* ensuring directory, then write if directory is ready.
+                        // It's crucial directoryEnsured is true here.
                         if (logFilePath && directoryEnsured) {
                              await fs.promises.writeFile(logFilePath, '', 'utf8'); // Overwrite with empty string
                              console.log(`Debug Logger: Log file ${logFilePath} reset for new session.`);
                         } else if (logFilePath) {
                              // Log error if directory couldn't be ensured
                              console.error(`Debug Logger: Cannot reset log file. Directory ${path.dirname(logFilePath)} not ensured.`);
+                        } else {
+                             // Log if logFilePath became null/undefined after await
+                             console.warn('Debug Logger: logFilePath became unavailable before log reset could occur.');
                         }
-                        // If logFilePath is null/undefined, the outer 'if' prevents this block
                     } catch (error) {
                         console.error(`Debug Logger: Failed to reset log file ${logFilePath}: ${error instanceof Error ? error.message : String(error)}`);
                         // Optionally notify user
