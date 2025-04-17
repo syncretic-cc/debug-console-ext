@@ -1,0 +1,33 @@
+{
+  "name": "debug-logger",
+  "displayName": "Debug Logger",
+  "description": "Automatically logs the output from the VS Code Debug Console to a file named debugConsole.log within a temp directory in your workspace.",
+  "publisher": "Syncretic",
+  "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Syncretic/debug-logger.git"
+  },
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.88.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onDebug"
+  ],
+  "main": "./out/extension.js",
+  "scripts": {
+    "compile": "tsc -p ./ && npx vsce package",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "@types/vscode": "^1.88.0",
+    "@vscode/test-electron": "^2.3.9",
+    "typescript": "^5.4.5",
+    "vsce": "^2.15.0"
+  }
+}
